@@ -1,12 +1,12 @@
 {
   "name": "123",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "scrapers": [
     {
       "id": "123",
       "name": "123",
       "description": "Películas y series en latino (HLS, máxima resolución).",
-      "version": "1.0.2",
+      "version": "1.0.3",
       "author": "-",
       "supportedTypes": [
         "movie",
