@@ -123,76 +123,163 @@ function lastMatch(re, text) {
 // ─────────────────────────────────────────────
 // TMDB -> títulos y año
 // ─────────────────────────────────────────────
+function tmdbGet(path, params) {
+    return __awaiter(this, void 0, void 0, function () {
+        var url, resp, data, _1;
+        return __generator(this, function (_a) {
+            switch (_a.label) {
+                case 0:
+                    _a.trys.push([0, 3, , 4]);
+                    url = "https://api.themoviedb.org/3/".concat(path, "?api_key=").concat(TMDB_API_KEY).concat(params ? "&" + params : "");
+                    return [4 /*yield*/, fetchRetry(url, { headers: { "User-Agent": UA } })];
+                case 1:
+                    resp = _a.sent();
+                    if (!resp.ok)
+                        return [2 /*return*/, null];
+                    return [4 /*yield*/, resp.json()];
+                case 2:
+                    data = _a.sent();
+                    return [2 /*return*/, data && data.success === false ? null : data];
+                case 3:
+                    _1 = _a.sent();
+                    return [2 /*return*/, null];
+                case 4: return [2 /*return*/];
+            }
+        });
+    });
+}
+// Países de habla hispana: sus títulos alternativos sirven para encontrar la película
+// cuando el sitio la publica con otro nombre ("Snowpiercer" / "El expreso del miedo" / "El tren del miedo").
+var ALT_TITLE_COUNTRIES = ["MX", "ES", "AR", "CL", "CO", "PE", "VE", "UY", "EC", "BO", "PY", "CR", "GT", "PA", "DO", "US"];
 function getTMDBInfo(tmdbId, type) {
     return __awaiter(this, void 0, void 0, function () {
-        var path, fetchLang, _a, es, en, titles, seen, _i, _b, d, _c, _d, t, key, base, dateStr, year;
-        var _this = this;
-        return __generator(this, function (_e) {
-            switch (_e.label) {
+        var path, append, _a, es, en, titles, altTitles, seen, add, _i, _b, d, _c, _d, t, _e, _f, tr, alts, _g, alts_1, alt, base, releaseDate, year, imageNames, director, d;
+        return __generator(this, function (_h) {
+            switch (_h.label) {
                 case 0:
                     path = type === "movie" ? "movie" : "tv";
-                    fetchLang = function (lang) { return __awaiter(_this, void 0, void 0, function () {
-                        var url, resp, data, _1;
-                        return __generator(this, function (_a) {
-                            switch (_a.label) {
-                                case 0:
-                                    _a.trys.push([0, 3, , 4]);
-                                    url = "https://api.themoviedb.org/3/".concat(path, "/").concat(tmdbId, "?api_key=").concat(TMDB_API_KEY, "&language=").concat(lang);
-                                    return [4 /*yield*/, fetch(url, { headers: { "User-Agent": UA } })];
-                                case 1:
-                                    resp = _a.sent();
-                                    if (!resp.ok)
-                                        return [2 /*return*/, null];
-                                    return [4 /*yield*/, resp.json()];
-                                case 2:
-                                    data = _a.sent();
-                                    return [2 /*return*/, data && data.success === false ? null : data];
-                                case 3:
-                                    _1 = _a.sent();
-                                    return [2 /*return*/, null];
-                                case 4: return [2 /*return*/];
-                            }
-                        });
-                    }); };
-                    return [4 /*yield*/, Promise.all([fetchLang("es-MX"), fetchLang("en-US")])];
+                    append = "append_to_response=alternative_titles,translations,credits";
+                    return [4 /*yield*/, Promise.all([
+                            tmdbGet("".concat(path, "/").concat(tmdbId), "language=es-MX&".concat(append)),
+                            tmdbGet("".concat(path, "/").concat(tmdbId), "language=en-US")
+                        ])];
                 case 1:
-                    _a = _e.sent(), es = _a[0], en = _a[1];
+                    _a = _h.sent(), es = _a[0], en = _a[1];
                     if (!es && !en)
                         return [2 /*return*/, null];
                     titles = [];
+                    altTitles = [];
                     seen = {};
+                    add = function (list, t) {
+                        if (!t)
+                            return;
+                        var key = normalizeTitle(t);
+                        if (!key || seen[key])
+                            return;
+                        seen[key] = true;
+                        list.push(t);
+                    };
+                    // Títulos principales: es-MX, original, inglés.
                     for (_i = 0, _b = [es, en]; _i < _b.length; _i++) {
                         d = _b[_i];
                         if (!d)
                             continue;
                         for (_c = 0, _d = [d.title, d.name, d.original_title, d.original_name]; _c < _d.length; _c++) {
                             t = _d[_c];
-                            if (!t)
-                                continue;
-                            key = normalizeTitle(t);
-                            if (!key || seen[key])
-                                continue;
-                            seen[key] = true;
-                            titles.push(t);
+                            add(titles, t);
+                        }
+                    }
+                    // Alternativos: traducciones al español y títulos de países hispanohablantes.
+                    if (es && es.translations && es.translations.translations) {
+                        for (_e = 0, _f = es.translations.translations; _e < _f.length; _e++) {
+                            tr = _f[_e];
+                            if (tr.iso_639_1 === "es" && tr.data)
+                                add(altTitles, tr.data.title || tr.data.name);
+                        }
+                    }
+                    if (es && es.alternative_titles) {
+                        alts = es.alternative_titles.titles || es.alternative_titles.results || [];
+                        for (_g = 0, alts_1 = alts; _g < alts_1.length; _g++) {
+                            alt = alts_1[_g];
+                            if (ALT_TITLE_COUNTRIES.indexOf(alt.iso_3166_1) !== -1)
+                                add(altTitles, alt.title);
                         }
                     }
                     base = es || en;
-                    dateStr = base.release_date || base.first_air_date;
-                    year = dateStr ? new Date(dateStr).getFullYear() : undefined;
-                    return [2 /*return*/, { titles: titles, year: year }];
+                    releaseDate = base.release_date || base.first_air_date || "";
+                    year = releaseDate ? new Date(releaseDate).getFullYear() : undefined;
+                    imageNames = [base.poster_path, base.backdrop_path].filter(Boolean).map(function (x) { return String(x).replace(/^\//, ""); });
+                    director = "";
+                    if (type === "movie" && es && es.credits && es.credits.crew) {
+                        d = es.credits.crew.find(function (c) { return c.job === "Director"; });
+                        if (d && d.name)
+                            director = d.name;
+                    }
+                    return [2 /*return*/, { titles: titles, altTitles: altTitles, year: year, releaseDate: releaseDate, imageNames: imageNames, director: director }];
             }
         });
     });
 }
-// ─────────────────────────────────────────────
-// Búsqueda en el sitio (WordPress: /?s=<texto>)
-// ─────────────────────────────────────────────
+// fetch con reintentos: 2 reintentos con espera creciente si el servidor responde 408, 429 o 5xx,
+// o si la conexión falla. (No modifica el fetch global.)
+function fetchRetry(url, options) {
+    return __awaiter(this, void 0, void 0, function () {
+        var retries, lastError, _loop_1, attempt, state_1;
+        return __generator(this, function (_a) {
+            switch (_a.label) {
+                case 0:
+                    retries = 2;
+                    lastError = null;
+                    _loop_1 = function (attempt) {
+                        var resp, retryable, e_1;
+                        return __generator(this, function (_b) {
+                            switch (_b.label) {
+                                case 0:
+                                    _b.trys.push([0, 2, , 3]);
+                                    return [4 /*yield*/, fetch(url, options)];
+                                case 1:
+                                    resp = _b.sent();
+                                    retryable = resp.status === 408 || resp.status === 429 || (resp.status >= 500 && resp.status < 600);
+                                    if (!retryable || attempt === retries)
+                                        return [2 /*return*/, { value: resp }];
+                                    return [3 /*break*/, 3];
+                                case 2:
+                                    e_1 = _b.sent();
+                                    lastError = e_1;
+                                    if (attempt === retries)
+                                        throw e_1;
+                                    return [3 /*break*/, 3];
+                                case 3: return [4 /*yield*/, new Promise(function (resolve) { return setTimeout(resolve, 400 * Math.pow(2, attempt)); })];
+                                case 4:
+                                    _b.sent();
+                                    return [2 /*return*/];
+                            }
+                        });
+                    };
+                    attempt = 0;
+                    _a.label = 1;
+                case 1:
+                    if (!(attempt <= retries)) return [3 /*break*/, 4];
+                    return [5 /*yield**/, _loop_1(attempt)];
+                case 2:
+                    state_1 = _a.sent();
+                    if (typeof state_1 === "object")
+                        return [2 /*return*/, state_1.value];
+                    _a.label = 3;
+                case 3:
+                    attempt++;
+                    return [3 /*break*/, 1];
+                case 4: throw lastError || Error("fetch falló");
+            }
+        });
+    });
+}
 function fetchHtml(url) {
     return __awaiter(this, void 0, void 0, function () {
         var resp, html, _a;
         return __generator(this, function (_b) {
             switch (_b.label) {
-                case 0: return [4 /*yield*/, fetch(url, {
+                case 0: return [4 /*yield*/, fetchRetry(url, {
                         headers: {
                             "User-Agent": UA,
                             "Referer": "".concat(SITE_BASE, "/"),
@@ -242,7 +329,10 @@ function parseSearchResults(html) {
         var url = href[1];
         var isTv = /temporada/i.test(url);
         var season = url.match(/temporada-(\d+)/i);
-        results.push({ url: url, title: title, isTv: isTv, seasonNum: season ? Number(season[1]) : null });
+        // El año aparece como texto suelto en la tarjeta (junto a la calificación).
+        var text = " " + block.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ") + " ";
+        var yearM = text.match(/\s((?:19|20)\d{2})\s/);
+        results.push({ url: url, title: title, isTv: isTv, seasonNum: season ? Number(season[1]) : null, year: yearM ? Number(yearM[1]) : undefined });
     }
     return results;
 }
@@ -271,10 +361,10 @@ function searchSite(titles) {
         return __generator(this, function (_b) {
             switch (_b.label) {
                 case 0:
-                    terms = buildSearchTerms(titles, 4);
+                    terms = buildSearchTerms(titles, 6);
                     tried = [];
                     return [4 /*yield*/, Promise.all(terms.map(function (term) { return __awaiter(_this, void 0, void 0, function () {
-                            var r, found, e_1;
+                            var r, found, e_2;
                             return __generator(this, function (_a) {
                                 switch (_a.label) {
                                     case 0:
@@ -286,8 +376,8 @@ function searchSite(titles) {
                                         tried.push("\"".concat(term, "\": ").concat(r.ok ? found.length + " resultados" : "HTTP " + r.status));
                                         return [2 /*return*/, found];
                                     case 2:
-                                        e_1 = _a.sent();
-                                        tried.push("\"".concat(term, "\": ").concat(e_1.message));
+                                        e_2 = _a.sent();
+                                        tried.push("\"".concat(term, "\": ").concat(e_2.message));
                                         return [2 /*return*/, []];
                                     case 3: return [2 /*return*/];
                                 }
@@ -312,11 +402,75 @@ function searchSite(titles) {
         });
     });
 }
+// Respaldo final: el buscador del sitio indexa el título con que se publicó la entrada, que a
+// veces no es ninguno de los de TMDB (ej. "El tren del miedo" vs "El expreso del miedo").
+// Se busca por palabras sueltas de los títulos y se deja que el título de la tarjeta decida.
+var STOPWORDS = ["el", "la", "los", "las", "de", "del", "un", "una", "unos", "unas", "y", "en", "al", "por", "con", "para", "the", "of", "and", "to", "in", "on"];
+function keywordTerms(titles) {
+    var words = [];
+    for (var _i = 0, _a = titles.slice(0, 5); _i < _a.length; _i++) {
+        var t = _a[_i];
+        for (var _b = 0, _c = normalizeTitle(t).split(" "); _b < _c.length; _b++) {
+            var w = _c[_b];
+            if (w.length >= 4 && STOPWORDS.indexOf(w) === -1 && words.indexOf(w) === -1)
+                words.push(w);
+        }
+    }
+    return words.slice(0, 5);
+}
+function searchByKeywords(titles) {
+    return __awaiter(this, void 0, void 0, function () {
+        var words, tried, lists, all, seen, _i, lists_2, list, _a, list_2, item;
+        var _this = this;
+        return __generator(this, function (_b) {
+            switch (_b.label) {
+                case 0:
+                    words = keywordTerms(titles);
+                    tried = [];
+                    return [4 /*yield*/, Promise.all(words.map(function (w) { return __awaiter(_this, void 0, void 0, function () {
+                            var r, found, e_3;
+                            return __generator(this, function (_a) {
+                                switch (_a.label) {
+                                    case 0:
+                                        _a.trys.push([0, 2, , 3]);
+                                        return [4 /*yield*/, fetchHtml("".concat(SITE_BASE, "/?s=").concat(encodeURIComponent(w)))];
+                                    case 1:
+                                        r = _a.sent();
+                                        found = r.ok ? parseSearchResults(r.html) : [];
+                                        tried.push("palabra \"".concat(w, "\": ").concat(r.ok ? found.length + " resultados" : "HTTP " + r.status));
+                                        return [2 /*return*/, found];
+                                    case 2:
+                                        e_3 = _a.sent();
+                                        tried.push("palabra \"".concat(w, "\": ").concat(e_3.message));
+                                        return [2 /*return*/, []];
+                                    case 3: return [2 /*return*/];
+                                }
+                            });
+                        }); }))];
+                case 1:
+                    lists = _b.sent();
+                    all = [];
+                    seen = {};
+                    for (_i = 0, lists_2 = lists; _i < lists_2.length; _i++) {
+                        list = lists_2[_i];
+                        for (_a = 0, list_2 = list; _a < list_2.length; _a++) {
+                            item = list_2[_a];
+                            if (seen[item.url])
+                                continue;
+                            seen[item.url] = true;
+                            all.push(item);
+                        }
+                    }
+                    return [2 /*return*/, { results: all, tried: tried }];
+            }
+        });
+    });
+}
 // Ordena los candidatos por parecido de título.
 function rankCandidates(results, titles, wantTv, season) {
     var normTitles = titles.map(normalizeTitle);
     var ranked = [];
-    var _loop_1 = function (item) {
+    var _loop_2 = function (item) {
         if (wantTv !== item.isTv)
             return "continue";
         if (wantTv && season && item.seasonNum && item.seasonNum !== season)
@@ -333,7 +487,7 @@ function rankCandidates(results, titles, wantTv, season) {
     };
     for (var _i = 0, results_1 = results; _i < results_1.length; _i++) {
         var item = results_1[_i];
-        _loop_1(item);
+        _loop_2(item);
     }
     ranked.sort(function (a, b) { return b.score - a.score; });
     return ranked.map(function (r) { return r.item; });
@@ -345,6 +499,56 @@ function getPageYear(html) {
     var t = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
     var y = t ? t[1].match(/\(\s*(\d{4})\s*\)/) : null;
     return y ? Number(y[1]) : undefined;
+}
+// Confirma que la página es la película/serie de TMDB. Las señales, de más a menos fiables:
+//   - la fecha de estreno exacta aparece en la página
+//   - alguna imagen de TMDB (póster/fondo) de esta película aparece en la página
+//   - el año coincide (y, vía director, el nombre del director aparece en la página)
+// `via` indica cómo se llegó a la página: "title" (el título coincide), "search" (solo salió
+// en la búsqueda de un título alternativo) o "director" (búsqueda por director).
+function verifyPage(html, info, via, wantTv) {
+    var pageYear = getPageYear(html);
+    var yearOK = !!(info.year && pageYear && Math.abs(pageYear - info.year) <= 1);
+    var exactYear = !!(info.year && pageYear && pageYear === info.year);
+    var dateOK = !!(info.releaseDate && html.indexOf(info.releaseDate) !== -1);
+    var imageOK = info.imageNames.some(function (n) { return html.indexOf(n) !== -1; });
+    if (via === "title")
+        return wantTv || !pageYear || yearOK || dateOK || imageOK;
+    if (via === "director")
+        return dateOK || imageOK || (exactYear && !!info.director && html.indexOf(info.director) !== -1);
+    return dateOK || imageOK;
+}
+// Abre los candidatos en orden y devuelve el primero que se verifica.
+function pickPage(candidates, info, wantTv, notes) {
+    return __awaiter(this, void 0, void 0, function () {
+        var _i, _a, entry, r;
+        return __generator(this, function (_b) {
+            switch (_b.label) {
+                case 0:
+                    _i = 0, _a = candidates.slice(0, 6);
+                    _b.label = 1;
+                case 1:
+                    if (!(_i < _a.length)) return [3 /*break*/, 4];
+                    entry = _a[_i];
+                    return [4 /*yield*/, fetchHtml(entry.item.url)];
+                case 2:
+                    r = _b.sent();
+                    if (!r.ok) {
+                        notes.push("".concat(entry.item.title, ": HTTP ").concat(r.status));
+                        return [3 /*break*/, 3];
+                    }
+                    if (verifyPage(r.html, info, entry.via, wantTv)) {
+                        return [2 /*return*/, { url: entry.item.url, title: entry.item.title, html: r.html }];
+                    }
+                    notes.push("".concat(entry.item.title, " (").concat(entry.via, "): no coincide"));
+                    _b.label = 3;
+                case 3:
+                    _i++;
+                    return [3 /*break*/, 1];
+                case 4: return [2 /*return*/, null];
+            }
+        });
+    });
 }
 function collectIframes(html) {
     var urls = [];
@@ -422,7 +626,7 @@ function parseHlsVariants(masterText, masterUrl) {
  */
 function extractPlayer(embedUrl) {
     return __awaiter(this, void 0, void 0, function () {
-        var origin, headers, resp, html, m, masterUrl, mresp, variants, _a, best, e_2;
+        var origin, headers, resp, html, m, masterUrl, mresp, variants, _a, best, e_4;
         return __generator(this, function (_b) {
             switch (_b.label) {
                 case 0:
@@ -462,8 +666,8 @@ function extractPlayer(embedUrl) {
                     _b.label = 6;
                 case 6: return [3 /*break*/, 8];
                 case 7:
-                    e_2 = _b.sent();
-                    console.warn("[Player] No se pudo leer el master: ".concat(e_2.message));
+                    e_4 = _b.sent();
+                    console.warn("[Player] No se pudo leer el master: ".concat(e_4.message));
                     return [3 /*break*/, 8];
                 case 8: return [2 /*return*/, { url: masterUrl, headers: headers, type: "hls" }];
             }
@@ -484,10 +688,10 @@ var ALL_SOURCES = {
 // ─────────────────────────────────────────────
 exports.getStreams = function (tmdbId, type, season, episode) {
     return __awaiter(this, void 0, void 0, function () {
-        var wantTv, seasonNum, episodeNum, fail, info, _a, results, tried, candidates, page, notes, _i, _b, cand, r, y, embeds, ep, errors_1, results2, final, e_3;
+        var wantTv, seasonNum, episodeNum, fail, info, allTitles, _a, results, tried, byTitle, inTitle_1, others, notes, page, dir, seenUrl_1, extra, kw, visited_1, kwRanked, embeds, ep, errors_1, results2, final, e_5;
         var _this = this;
-        return __generator(this, function (_c) {
-            switch (_c.label) {
+        return __generator(this, function (_b) {
+            switch (_b.label) {
                 case 0:
                     if (!tmdbId || (type !== "movie" && type !== "tv"))
                         return [2 /*return*/, []];
@@ -501,50 +705,57 @@ exports.getStreams = function (tmdbId, type, season, episode) {
                             ? [{ name: PROVIDER_NAME, title: "", url: "https://example.invalid/debug", quality: "\u26A0 ".concat(reason) }]
                             : [];
                     };
-                    _c.label = 1;
+                    _b.label = 1;
                 case 1:
-                    _c.trys.push([1, 9, , 10]);
+                    _b.trys.push([1, 12, , 13]);
                     return [4 /*yield*/, getTMDBInfo(tmdbId, type)];
                 case 2:
-                    info = _c.sent();
+                    info = _b.sent();
                     if (!info || info.titles.length === 0)
                         return [2 /*return*/, fail("TMDB no devolvi\u00F3 t\u00EDtulo (id ".concat(tmdbId, ")"))];
-                    return [4 /*yield*/, searchSite(info.titles)];
+                    allTitles = info.titles.concat(info.altTitles);
+                    return [4 /*yield*/, searchSite(allTitles)];
                 case 3:
-                    _a = _c.sent(), results = _a.results, tried = _a.tried;
-                    candidates = rankCandidates(results, info.titles, wantTv, seasonNum);
-                    if (candidates.length === 0) {
-                        return [2 /*return*/, fail("Sin coincidencias. B\u00FAsquedas: ".concat(tried.join(" | ")))];
-                    }
-                    page = null;
+                    _a = _b.sent(), results = _a.results, tried = _a.tried;
+                    byTitle = rankCandidates(results, allTitles, wantTv, seasonNum);
+                    inTitle_1 = {};
+                    byTitle.forEach(function (c) { inTitle_1[c.url] = true; });
+                    others = results.filter(function (c) { return c.isTv === wantTv && !inTitle_1[c.url]; }).slice(0, 4);
                     notes = [];
-                    _i = 0, _b = candidates.slice(0, 3);
-                    _c.label = 4;
+                    return [4 /*yield*/, pickPage(byTitle.map(function (item) { return ({ item: item, via: "title" }); }).concat(others.map(function (item) { return ({ item: item, via: "search" }); })), info, wantTv, notes)
+                        // Respaldo (solo películas): buscar por director; cubre títulos que el sitio escribe distinto.
+                    ];
                 case 4:
-                    if (!(_i < _b.length)) return [3 /*break*/, 7];
-                    cand = _b[_i];
-                    return [4 /*yield*/, fetchHtml(cand.url)];
+                    page = _b.sent();
+                    if (!(!page && !wantTv && info.director)) return [3 /*break*/, 7];
+                    return [4 /*yield*/, searchSite([info.director])];
                 case 5:
-                    r = _c.sent();
-                    if (!r.ok) {
-                        notes.push("".concat(cand.url, ": HTTP ").concat(r.status));
-                        return [3 /*break*/, 6];
-                    }
-                    if (!wantTv && info.year) {
-                        y = getPageYear(r.html);
-                        if (y && Math.abs(y - info.year) > 1) {
-                            notes.push("".concat(cand.title, ": a\u00F1o ").concat(y, " \u2260 ").concat(info.year));
-                            return [3 /*break*/, 6];
-                        }
-                    }
-                    page = { url: cand.url, title: cand.title, html: r.html };
-                    return [3 /*break*/, 7];
+                    dir = _b.sent();
+                    tried.push("director \"".concat(info.director, "\": ").concat(dir.results.length, " resultados"));
+                    seenUrl_1 = {};
+                    byTitle.concat(others).forEach(function (c) { seenUrl_1[c.url] = true; });
+                    extra = dir.results.filter(function (c) { return !c.isTv && !seenUrl_1[c.url]; });
+                    return [4 /*yield*/, pickPage(extra.map(function (item) { return ({ item: item, via: "director" }); }), info, wantTv, notes)];
                 case 6:
-                    _i++;
-                    return [3 /*break*/, 4];
+                    page = _b.sent();
+                    _b.label = 7;
                 case 7:
-                    if (!page)
-                        return [2 /*return*/, fail("Ning\u00FAn candidato coincide. ".concat(notes.join(" | ")))];
+                    if (!!page) return [3 /*break*/, 10];
+                    return [4 /*yield*/, searchByKeywords(allTitles)];
+                case 8:
+                    kw = _b.sent();
+                    tried.push.apply(tried, kw.tried);
+                    visited_1 = {};
+                    byTitle.concat(others).forEach(function (c) { visited_1[c.url] = true; });
+                    kwRanked = rankCandidates(kw.results, allTitles, wantTv, seasonNum).filter(function (c) { return !visited_1[c.url]; });
+                    return [4 /*yield*/, pickPage(kwRanked.map(function (item) { return ({ item: item, via: "title" }); }), info, wantTv, notes)];
+                case 9:
+                    page = _b.sent();
+                    _b.label = 10;
+                case 10:
+                    if (!page) {
+                        return [2 /*return*/, fail("Sin coincidencias. B\u00FAsquedas: ".concat(tried.join(" | ")).concat(notes.length ? ". Descartados: " + notes.join(" | ") : ""))];
+                    }
                     console.log("[".concat(PROVIDER_NAME, "] P\u00E1gina elegida: ").concat(page.title));
                     embeds = void 0;
                     if (wantTv) {
@@ -560,7 +771,7 @@ exports.getStreams = function (tmdbId, type, season, episode) {
                     }
                     errors_1 = [];
                     return [4 /*yield*/, Promise.all(embeds.map(function (embedUrl) { return __awaiter(_this, void 0, void 0, function () {
-                            var key, source, resolved, q, e_4;
+                            var key, source, resolved, q, e_6;
                             return __generator(this, function (_a) {
                                 switch (_a.label) {
                                     case 0:
@@ -579,24 +790,24 @@ exports.getStreams = function (tmdbId, type, season, episode) {
                                         q = resolved.height ? "".concat(resolved.height, "p") : "HD";
                                         return [2 /*return*/, __assign({ name: PROVIDER_NAME, title: "", url: resolved.url, quality: "\uD83D\uDCFA ".concat(source.label, " (").concat(source.format, ")\n").concat(q, " | WEB-DL\n\uD83C\uDDF2\uD83C\uDDFD LATINO"), headers: resolved.headers }, (resolved.type ? { type: resolved.type } : {}))];
                                     case 3:
-                                        e_4 = _a.sent();
-                                        errors_1.push("".concat(source.label, ": ").concat(e_4.message));
+                                        e_6 = _a.sent();
+                                        errors_1.push("".concat(source.label, ": ").concat(e_6.message));
                                         return [2 /*return*/, null];
                                     case 4: return [2 /*return*/];
                                 }
                             });
                         }); }))];
-                case 8:
-                    results2 = _c.sent();
+                case 11:
+                    results2 = _b.sent();
                     final = results2.filter(Boolean);
                     if (final.length === 0)
                         return [2 /*return*/, fail("Sin streams. ".concat(errors_1.join(" | ")))];
                     console.log("[".concat(PROVIDER_NAME, "] \u2713 ").concat(final.length, " streams devueltos"));
                     return [2 /*return*/, final];
-                case 9:
-                    e_3 = _c.sent();
-                    return [2 /*return*/, fail("Error: ".concat(e_3.message))];
-                case 10: return [2 /*return*/];
+                case 12:
+                    e_5 = _b.sent();
+                    return [2 /*return*/, fail("Error: ".concat(e_5.message))];
+                case 13: return [2 /*return*/];
             }
         });
     });
