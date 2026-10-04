@@ -1,1 +1,17 @@
-
+{
+  "name": "Aurora",
+  "version": "1.0.0",
+  "scrapers": [
+    {
+      "id": "Aurora",
+      "name": "Aurora",
+      "description": "Películas y series en latino (HLS, máxima resolución).",
+      "version": "1.0.0",
+      "author": "-",
+      "supportedTypes": ["movie", "tv"],
+      "filename": "providers/aurora.js",
+      "enabled": true,
+      "contentLanguage": ["es"]
+    }
+  ]
+}
