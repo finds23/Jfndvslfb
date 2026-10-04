@@ -1,5 +1,5 @@
 "use strict";
-// providers/aurora.js
+// providers/123.js
 // Provider Nuvio para un sitio WordPress de películas y series.
 //
 // Flujo:
@@ -73,7 +73,7 @@ function b64decode(input) {
     }
     return out;
 }
-var PROVIDER_NAME = "Aurora"; // nombre visible en los logs y en la lista de streams
+var PROVIDER_NAME = "123"; // nombre visible en los logs y en la lista de streams
 var SITE_BASE = b64decode("aHR0cHM6Ly9wZWxpczE4Mi5uZXQ=");
 var TMDB_API_KEY = "56db0ec297530920213e1503706b81ff";
 var UA = "Mozilla/5.0 (Linux; Android 13; moto g82 5G) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Mobile Safari/537.36";
