@@ -79,7 +79,7 @@ var TMDB_API_KEY = "56db0ec297530920213e1503706b81ff";
 var UA = "Mozilla/5.0 (Linux; Android 13; moto g82 5G) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Mobile Safari/537.36";
 // DEBUG: true muestra en la lista de streams el motivo por el que no se encontró nada.
 // Ponlo en false cuando todo funcione.
-var DEBUG = true;
+var DEBUG = false;
 // ─────────────────────────────────────────────
 // Utilidades (sin depender de URL, que en React Native está incompleta)
 // ─────────────────────────────────────────────
